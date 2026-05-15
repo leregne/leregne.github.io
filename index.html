@@ -1,98 +1,39 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DriveSafe App - Test Sécurisé</title>
-    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-    <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f2f5;
-        }
-        .container {
-            text-align: center;
-            padding: 30px;
-            border-radius: 16px;
-            background: white;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-            max-width: 90%;
-            width: 350px;
-        }
-        h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
-        p { color: #666; font-size: 14px; margin-bottom: 25px; }
-        .pi-btn {
-            background-color: #6200ee;
-            color: white;
-            border: none;
-            padding: 14px 28px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-            box-shadow: 0 4px 12px rgba(98, 0, 238, 0.3);
-            transition: all 0.2s ease;
-        }
-        .pi-btn:disabled {
-            background-color: #aaaaaa;
-            box-shadow: none;
-            cursor: not-allowed;
-        }
-        .status-box {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 13px;
-        }
-        .info { background-color: #e8f0fe; color: #1a73e8; }
-        .success { background-color: #e6f4ea; color: #137333; }
-        .error { background-color: #fce8e6; color: #c5221f; }
-    </style>
-</head>
-<body>
-
-    <div class="container">
-        <h1>DriveSafe App</h1>
-        <p>Simulation de paiement Sandbox sécurisée</p>
-        
-        <button class="pi-btn" id="pay-button" disabled>Connexion au réseau Pi...</button>
-        
-        <div class="status-box info" id="status-message">Initialisation en cours...</div>
-    </div>
-
     <script>
         const Pi = window.Pi;
         const payButton = document.getElementById('pay-button');
         const statusDiv = document.getElementById('status-message');
 
-        // 1. Initialisation du SDK
-        Pi.init({ version: "2.0", sandbox: true });
-        
-        // 2. Authentification obligatoire requise par Pi Browser
-        Pi.authenticate(['username', 'payments'], function(onIncompletePaymentFound) {
-            console.log("Paiement incomplet trouvé :", onIncompletePaymentFound);
-        })
-        .then(function(auth) {
-            // L'utilisateur est connecté avec succès au SDK ! On débloque le bouton
-            statusDiv.className = "status-box success";
-            statusDiv.innerHTML = "Connecté en tant que : <strong>" + auth.user.username + "</strong>";
-            payButton.disabled = false;
-            payButton.innerText = "Payer 1 Pi";
-        })
-        .catch(function(error) {
+        // 1. On démarre d'abord le système Pi
+        try {
+            Pi.init({ version: "2.0", sandbox: true });
+            
+            // 2. On attend 1 seconde complète pour être SÛR que le SDK est prêt
+            setTimeout(function() {
+                statusDiv.className = "status-box info";
+                statusDiv.innerText = "Authentification auprès de Pi...";
+                
+                // 3. Maintenant, on peut connecter l'utilisateur en toute sécurité
+                Pi.authenticate(['username', 'payments'], function(onIncompletePaymentFound) {
+                    console.log("Paiement incomplet :", onIncompletePaymentFound);
+                })
+                .then(function(auth) {
+                    statusDiv.className = "status-box success";
+                    statusDiv.innerHTML = "Connecté en tant que : <strong>" + auth.user.username + "</strong>";
+                    payButton.disabled = false;
+                    payButton.innerText = "Payer 1 Pi";
+                })
+                .catch(function(error) {
+                    statusDiv.className = "status-box error";
+                    statusDiv.innerHTML = "Erreur de connexion : " + error.message;
+                });
+            }, 1000); // Pause de sécurité de 1000 millisecondes
+            
+        } catch (e) {
             statusDiv.className = "status-box error";
-            statusDiv.innerHTML = "Erreur d'authentification : " + error.message;
-            console.error(error);
-        });
+            statusDiv.innerHTML = "Erreur critique : " + e.message;
+        }
 
-        // 3. Gestion du clic sur le bouton une fois débloqué
+        // 4. Gestion du clic sur le bouton
         payButton.addEventListener('click', function() {
             payButton.disabled = true;
             payButton.innerText = "Traitement...";
@@ -103,11 +44,11 @@
                 metadata: { orderId: "DS-2026-TEST" }
             }, {
                 onReadyForServerApproval: function(paymentId) {
-                    alert("Étape 1 : Le paiement " + paymentId + " est généré. Simulation de l'approbation serveur.");
+                    alert("Étape 1 : Paiement " + paymentId + " généré. Approbation simulée !");
                 },
                 onReadyForServerCompletion: function(paymentId, txid) {
                     statusDiv.className = "status-box success";
-                    statusDiv.innerHTML = "<strong>Succès !</strong><br>Paiement validé localement.<br>TXID: " + txid.substring(0, 15) + "...";
+                    statusDiv.innerHTML = "<strong>Succès !</strong><br>Paiement validé.<br>TXID: " + txid.substring(0, 15);
                     payButton.disabled = false;
                     payButton.innerText = "Payer 1 Pi";
                 },
@@ -124,6 +65,3 @@
             });
         });
     </script>
-
-</body>
-</html>
