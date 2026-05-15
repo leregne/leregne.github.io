@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriveSafe App</title>
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        /* Style du bouton de paiement Pi officiel */
+        .pi-btn {
+            background-color: #6200ee;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: background 0.3s;
+        }
+        .pi-btn:hover {
+            background-color: #3700b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>DriveSafe Application</h1>
+        <p>Bienvenue sur l'interface de test de paiement Pi Network.</p>
+        
+        <button class="pi-btn" id="pay-button">Payer avec Pi</button>
+    </div>
+
+    <script>
+        // Initialisation du SDK Pi
+        const Pi = window.Pi;
+        Pi.init({ version: "2.0", sandbox: true });
+
+        // Gestion du clic sur le bouton de paiement
+        document.getElementById('pay-button').addEventListener('click', function() {
+            // Configuration de la demande de paiement de test
+            Pi.createPayment({
+                amount: 1,
+                memo: "Test de paiement DriveSafe",
+                metadata: { orderId: "12345" }
+            }, {
+                onReadyForServerApproval: function(paymentId) {
+                    console.log("Paiement prêt pour approbation serveur :", paymentId);
+                },
+                onReadyForServerCompletion: function(paymentId, txid) {
+                    console.log("Paiement prêt pour finalisation serveur :", txid);
+                },
+                onCancel: function(paymentId) {
+                    console.log("Paiement annulé par l'utilisateur.");
+                },
+                onError: function(error, paymentId) {
+                    console.error("Une erreur est survenue :", error);
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
