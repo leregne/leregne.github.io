@@ -1,86 +1,24 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DriveSafe App</title>
-    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f2f5;
-        }
-        .container {
-            text-align: center;
-            padding: 30px;
-            border-radius: 16px;
-            background: white;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-            max-width: 90%;
-            width: 320px;
-        }
-        .pi-btn {
-            background-color: #6200ee;
-            color: white;
-            border: none;
-            padding: 14px 28px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-            box-shadow: 0 4px 12px rgba(98, 0, 238, 0.3);
-        }
-        .pi-btn:disabled {
-            background-color: #aaaaaa;
-            box-shadow: none;
-            cursor: not-allowed;
-        }
-        .status-box {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 13px;
-        }
-        .info { background-color: #e8f0fe; color: #1a73e8; }
-        .success { background-color: #e6f4ea; color: #137333; }
-        .error { background-color: #fce8e6; color: #c5221f; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h1>DriveSafe App</h1>
-    <p>Validation Sandbox sécurisée</p>
-
-    <button class="pi-btn" id="pay-button" disabled>Attente du SDK Pi...</button>
-
-    <div class="status-box info" id="status-message">Chargement des scripts...</div>
-</div>
-
 <script>
     const payButton = document.getElementById('pay-button');
     const statusDiv = document.getElementById('status-message');
 
-    window.onload = function() {
-        statusDiv.innerText = "SDK détecté. Initialisation...";
+    // Initialisation immédiate du SDK Pi
+    if (typeof Pi !== 'undefined') {
+        Pi.init({ version: "2.0", sandbox: true });
+        console.log("Pi initialisé");
+    } else {
+        console.error("Pi SDK non disponible");
+    }
 
-        try {
-            // Initialisation du SDK en mode sandbox
-            Pi.init({ version: "2.0", sandbox: true });
-
-            statusDiv.innerText = "Connexion à Pi Network...";
-
+    // Attendre que tout le DOM soit chargé pour authentifier
+    window.addEventListener('load', function() {
+        statusDiv.innerText = "Connexion à Pi Network...";
+        
+        // Petit délai pour être sûr que l'init a pris effet
+        setTimeout(function() {
             Pi.authenticate(['username', 'payments'], function(incompletePayments) {
-                // Gestion des paiements incomplets (optionnel)
                 if (incompletePayments && incompletePayments.length > 0) {
-                    console.log("Paiements incomplets trouvés", incompletePayments);
+                    console.log("Paiements incomplets", incompletePayments);
                 }
             })
             .then(function(auth) {
@@ -93,51 +31,9 @@
                 statusDiv.className = "status-box error";
                 statusDiv.innerText = "Erreur de connexion : " + err.message;
             });
-
-        } catch (e) {
-            statusDiv.className = "status-box error";
-            statusDiv.innerText = "Erreur d'initialisation : " + e.message;
-        }
-    };
-
-    payButton.addEventListener('click', function() {
-        payButton.disabled = true;
-        payButton.innerText = "Traitement...";
-
-        Pi.createPayment({
-            amount: 1,
-            memo: "Test Sandbox DriveSafe",
-            metadata: { orderId: "DS-2026" }
-        }, {
-            onReadyForServerApproval: function(paymentId) {
-                // ⚠️ En sandbox seulement : on approuve directement côté client
-                // En production, il faut un appel à votre backend ici
-                Pi.approvePayment(paymentId);
-                statusDiv.innerHTML = "Paiement approuvé en attente de finalisation...";
-            },
-            onReadyForServerCompletion: function(paymentId, txid) {
-                // Finalisation du paiement
-                Pi.completePayment(paymentId, txid);
-                statusDiv.className = "status-box success";
-                statusDiv.innerHTML = "<strong>Succès !</strong><br>Paiement validé.<br>TXID: " + txid.substring(0, 12);
-                payButton.disabled = false;
-                payButton.innerText = "Payer 1 Pi";
-            },
-            onCancel: function(paymentId) {
-                statusDiv.className = "status-box error";
-                statusDiv.innerText = "Paiement annulé par l'utilisateur.";
-                payButton.disabled = false;
-                payButton.innerText = "Payer 1 Pi";
-            },
-            onError: function(error, paymentId) {
-                statusDiv.className = "status-box error";
-                statusDiv.innerText = "Erreur Pi : " + error.message;
-                payButton.disabled = false;
-                payButton.innerText = "Payer 1 Pi";
-            }
-        });
+        }, 300);
     });
-</script>
 
-</body>
-</html>
+    // Le reste (gestion du paiement) reste identique...
+    payButton.addEventListener('click', function() { ... });
+</script>
