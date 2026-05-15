@@ -40,6 +40,7 @@
         .pi-btn:disabled {
             background-color: #aaaaaa;
             box-shadow: none;
+            cursor: not-allowed;
         }
         .status-box {
             margin-top: 20px;
@@ -54,27 +55,33 @@
 </head>
 <body>
 
-    <div class="container">
-        <h1>DriveSafe App</h1>
-        <p>Validation Sandbox sécurisée</p>
-        
-        <button class="pi-btn" id="pay-button" disabled>Connexion à Pi Network...</button>
-        
-        <div class="status-box info" id="status-message">Démarrage du système...</div>
-    </div>
+<div class="container">
+    <h1>DriveSafe App</h1>
+    <p>Validation Sandbox sécurisée</p>
 
-    <script>
-        const payButton = document.getElementById('pay-button');
-        const statusDiv = document.getElementById('status-message');
+    <button class="pi-btn" id="pay-button" disabled>Attente du SDK Pi...</button>
 
-        // Étape 1 : Initialisation propre du SDK
+    <div class="status-box info" id="status-message">Chargement des scripts...</div>
+</div>
+
+<script>
+    const payButton = document.getElementById('pay-button');
+    const statusDiv = document.getElementById('status-message');
+
+    window.onload = function() {
+        statusDiv.innerText = "SDK détecté. Initialisation...";
+
         try {
-            window.Pi.init({ version: "2.0", sandbox: true });
-            statusDiv.innerText = "Système Pi prêt. Connexion...";
-            
-            // Étape 2 : Authentification de l'utilisateur
-            window.Pi.authenticate(['username', 'payments'], function(onIncompletePaymentFound) {
-                console.log("Paiement incomplet trouvé :", onIncompletePaymentFound);
+            // Initialisation du SDK en mode sandbox
+            Pi.init({ version: "2.0", sandbox: true });
+
+            statusDiv.innerText = "Connexion à Pi Network...";
+
+            Pi.authenticate(['username', 'payments'], function(incompletePayments) {
+                // Gestion des paiements incomplets (optionnel)
+                if (incompletePayments && incompletePayments.length > 0) {
+                    console.log("Paiements incomplets trouvés", incompletePayments);
+                }
             })
             .then(function(auth) {
                 statusDiv.className = "status-box success";
@@ -91,39 +98,46 @@
             statusDiv.className = "status-box error";
             statusDiv.innerText = "Erreur d'initialisation : " + e.message;
         }
+    };
 
-        // Étape 3 : Gestion du bouton de paiement
-        payButton.addEventListener('click', function() {
-            payButton.disabled = true;
-            payButton.innerText = "Traitement...";
+    payButton.addEventListener('click', function() {
+        payButton.disabled = true;
+        payButton.innerText = "Traitement...";
 
-            window.Pi.createPayment({
-                amount: 1,
-                memo: "Test Sandbox DriveSafe",
-                metadata: { orderId: "DS-2026" }
-            }, {
-                onReadyForServerApproval: function(paymentId) {
-                    alert("Paiement initié (ID: " + paymentId + "). Simulation de l'approbation serveur.");
-                },
-                onReadyForServerCompletion: function(paymentId, txid) {
-                    statusDiv.className = "status-box success";
-                    statusDiv.innerHTML = "<strong>Succès !</strong><br>Paiement validé.<br>TXID: " + txid.substring(0, 12);
-                    payButton.disabled = false;
-                    payButton.innerText = "Payer 1 Pi";
-                },
-                onCancel: function(paymentId) {
-                    alert("Paiement annulé.");
-                    payButton.disabled = false;
-                    payButton.innerText = "Payer 1 Pi";
-                },
-                onError: function(error, paymentId) {
-                    alert("Erreur Pi : " + error.message);
-                    payButton.disabled = false;
-                    payButton.innerText = "Payer 1 Pi";
-                }
-            });
+        Pi.createPayment({
+            amount: 1,
+            memo: "Test Sandbox DriveSafe",
+            metadata: { orderId: "DS-2026" }
+        }, {
+            onReadyForServerApproval: function(paymentId) {
+                // ⚠️ En sandbox seulement : on approuve directement côté client
+                // En production, il faut un appel à votre backend ici
+                Pi.approvePayment(paymentId);
+                statusDiv.innerHTML = "Paiement approuvé en attente de finalisation...";
+            },
+            onReadyForServerCompletion: function(paymentId, txid) {
+                // Finalisation du paiement
+                Pi.completePayment(paymentId, txid);
+                statusDiv.className = "status-box success";
+                statusDiv.innerHTML = "<strong>Succès !</strong><br>Paiement validé.<br>TXID: " + txid.substring(0, 12);
+                payButton.disabled = false;
+                payButton.innerText = "Payer 1 Pi";
+            },
+            onCancel: function(paymentId) {
+                statusDiv.className = "status-box error";
+                statusDiv.innerText = "Paiement annulé par l'utilisateur.";
+                payButton.disabled = false;
+                payButton.innerText = "Payer 1 Pi";
+            },
+            onError: function(error, paymentId) {
+                statusDiv.className = "status-box error";
+                statusDiv.innerText = "Erreur Pi : " + error.message;
+                payButton.disabled = false;
+                payButton.innerText = "Payer 1 Pi";
+            }
         });
-    </script>
+    });
+</script>
 
 </body>
 </html>
