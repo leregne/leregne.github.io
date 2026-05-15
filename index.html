@@ -40,72 +40,86 @@
             box-shadow: 0 4px 12px rgba(98, 0, 238, 0.3);
             transition: all 0.2s ease;
         }
-        .pi-btn:active {
-            transform: scale(0.98);
-            background-color: #4b00b3;
+        .pi-btn:disabled {
+            background-color: #aaaaaa;
+            box-shadow: none;
+            cursor: not-allowed;
         }
         .status-box {
             margin-top: 20px;
             padding: 10px;
             border-radius: 6px;
             font-size: 13px;
-            display: none;
         }
-        .success { background-color: #e6f4ea; color: #137333; display: block; }
+        .info { background-color: #e8f0fe; color: #1a73e8; }
+        .success { background-color: #e6f4ea; color: #137333; }
+        .error { background-color: #fce8e6; color: #c5221f; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>DriveSafe App</h1>
-        <p>Simulation de paiement Sandbox sécurisée (Aucune clé secrète exposée)</p>
+        <p>Simulation de paiement Sandbox sécurisée</p>
         
-        <button class="pi-btn" id="pay-button">Payer 1 Pi</button>
+        <button class="pi-btn" id="pay-button" disabled>Connexion au réseau Pi...</button>
         
-        <div class="status-box" id="status-message"></div>
+        <div class="status-box info" id="status-message">Initialisation en cours...</div>
     </div>
 
     <script>
-        // Initialisation du SDK en mode Sandbox
         const Pi = window.Pi;
-        Pi.init({ version: "2.0", sandbox: true });
+        const payButton = document.getElementById('pay-button');
+        const statusDiv = document.getElementById('status-message');
 
-        document.getElementById('pay-button').addEventListener('click', function() {
-            const statusDiv = document.getElementById('status-message');
-            statusDiv.style.display = "none";
+        // 1. Initialisation du SDK
+        Pi.init({ version: "2.0", sandbox: true });
+        
+        // 2. Authentification obligatoire requise par Pi Browser
+        Pi.authenticate(['username', 'payments'], function(onIncompletePaymentFound) {
+            console.log("Paiement incomplet trouvé :", onIncompletePaymentFound);
+        })
+        .then(function(auth) {
+            // L'utilisateur est connecté avec succès au SDK ! On débloque le bouton
+            statusDiv.className = "status-box success";
+            statusDiv.innerHTML = "Connecté en tant que : <strong>" + auth.user.username + "</strong>";
+            payButton.disabled = false;
+            payButton.innerText = "Payer 1 Pi";
+        })
+        .catch(function(error) {
+            statusDiv.className = "status-box error";
+            statusDiv.innerHTML = "Erreur d'authentification : " + error.message;
+            console.error(error);
+        });
+
+        // 3. Gestion du clic sur le bouton une fois débloqué
+        payButton.addEventListener('click', function() {
+            payButton.disabled = true;
+            payButton.innerText = "Traitement...";
             
-            // Lancement du flux de paiement sécurisé Pi
             Pi.createPayment({
                 amount: 1,
                 memo: "Test sécurisé DriveSafe",
                 metadata: { orderId: "DS-2026-TEST" }
             }, {
-                // Étape A : Le Pi Browser génère le paiement
                 onReadyForServerApproval: function(paymentId) {
-                    console.log("Paiement initié avec l'ID :", paymentId);
-                    
-                    // Sécurité totale : On simule l'approbation du serveur instantanément en local
-                    // sans jamais appeler ou risquer d'exposer la clé de l'étape 9.
-                    setTimeout(() => {
-                        alert("Simulation Serveur : Approbation validée pour l'ID " + paymentId);
-                    }, 800);
+                    alert("Étape 1 : Le paiement " + paymentId + " est généré. Simulation de l'approbation serveur.");
                 },
-                
-                // Étape B : L'utilisateur a payé dans son portefeuille de test
                 onReadyForServerCompletion: function(paymentId, txid) {
-                    console.log("Transaction réseau réussie, TXID :", txid);
-                    
-                    // Simulation locale de la finalisation
                     statusDiv.className = "status-box success";
-                    statusDiv.innerHTML = "<strong>Succès !</strong><br>Le paiement de 1 Pi a été validé localement.<br>TXID: " + txid.substring(0, 10) + "...";
+                    statusDiv.innerHTML = "<strong>Succès !</strong><br>Paiement validé localement.<br>TXID: " + txid.substring(0, 15) + "...";
+                    payButton.disabled = false;
+                    payButton.innerText = "Payer 1 Pi";
                 },
-                
                 onCancel: function(paymentId) {
-                    alert("Vous avez annulé le paiement.");
+                    alert("Paiement annulé.");
+                    payButton.disabled = false;
+                    payButton.innerText = "Payer 1 Pi";
                 },
-                
                 onError: function(error, paymentId) {
-                    alert("Erreur de la Sandbox : " + error.message);
+                    alert("Erreur : " + error.message);
+                    payButton.disabled = false;
+                    payButton.innerText = "Payer 1 Pi";
                 }
             });
         });
