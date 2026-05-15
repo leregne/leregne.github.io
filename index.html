@@ -3,77 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DriveSafe App</title>
+    <title>DriveSafe App - Test Sécurisé</title>
     <script src="https://sdk.minepi.com/pi-sdk.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
-            background-color: #f4f4f9;
+            background-color: #f0f2f5;
         }
         .container {
             text-align: center;
-            padding: 20px;
-            border-radius: 10px;
+            padding: 30px;
+            border-radius: 16px;
             background: white;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            max-width: 90%;
+            width: 350px;
         }
-        /* Style du bouton de paiement Pi officiel */
+        h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
+        p { color: #666; font-size: 14px; margin-bottom: 25px; }
         .pi-btn {
             background-color: #6200ee;
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 14px 28px;
             font-size: 16px;
             font-weight: bold;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            transition: background 0.3s;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(98, 0, 238, 0.3);
+            transition: all 0.2s ease;
         }
-        .pi-btn:hover {
-            background-color: #3700b3;
+        .pi-btn:active {
+            transform: scale(0.98);
+            background-color: #4b00b3;
         }
+        .status-box {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+        .success { background-color: #e6f4ea; color: #137333; display: block; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>DriveSafe Application</h1>
-        <p>Bienvenue sur l'interface de test de paiement Pi Network.</p>
+        <h1>DriveSafe App</h1>
+        <p>Simulation de paiement Sandbox sécurisée (Aucune clé secrète exposée)</p>
         
-        <button class="pi-btn" id="pay-button">Payer avec Pi</button>
+        <button class="pi-btn" id="pay-button">Payer 1 Pi</button>
+        
+        <div class="status-box" id="status-message"></div>
     </div>
 
     <script>
-        // Initialisation du SDK Pi
+        // Initialisation du SDK en mode Sandbox
         const Pi = window.Pi;
         Pi.init({ version: "2.0", sandbox: true });
 
-        // Gestion du clic sur le bouton de paiement
         document.getElementById('pay-button').addEventListener('click', function() {
-            // Configuration de la demande de paiement de test
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.style.display = "none";
+            
+            // Lancement du flux de paiement sécurisé Pi
             Pi.createPayment({
                 amount: 1,
-                memo: "Test de paiement DriveSafe",
-                metadata: { orderId: "12345" }
+                memo: "Test sécurisé DriveSafe",
+                metadata: { orderId: "DS-2026-TEST" }
             }, {
+                // Étape A : Le Pi Browser génère le paiement
                 onReadyForServerApproval: function(paymentId) {
-                    console.log("Paiement prêt pour approbation serveur :", paymentId);
+                    console.log("Paiement initié avec l'ID :", paymentId);
+                    
+                    // Sécurité totale : On simule l'approbation du serveur instantanément en local
+                    // sans jamais appeler ou risquer d'exposer la clé de l'étape 9.
+                    setTimeout(() => {
+                        alert("Simulation Serveur : Approbation validée pour l'ID " + paymentId);
+                    }, 800);
                 },
+                
+                // Étape B : L'utilisateur a payé dans son portefeuille de test
                 onReadyForServerCompletion: function(paymentId, txid) {
-                    console.log("Paiement prêt pour finalisation serveur :", txid);
+                    console.log("Transaction réseau réussie, TXID :", txid);
+                    
+                    // Simulation locale de la finalisation
+                    statusDiv.className = "status-box success";
+                    statusDiv.innerHTML = "<strong>Succès !</strong><br>Le paiement de 1 Pi a été validé localement.<br>TXID: " + txid.substring(0, 10) + "...";
                 },
+                
                 onCancel: function(paymentId) {
-                    console.log("Paiement annulé par l'utilisateur.");
+                    alert("Vous avez annulé le paiement.");
                 },
+                
                 onError: function(error, paymentId) {
-                    console.error("Une erreur est survenue :", error);
+                    alert("Erreur de la Sandbox : " + error.message);
                 }
             });
         });
