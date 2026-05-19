@@ -29,7 +29,7 @@
         const payButton = document.getElementById('pay-button');
         const statusDiv = document.getElementById('status-message');
         
-        // Ton lien Render exact est configuré ici :
+        // Ton lien Render exact et vérifié
         const BACKEND_URL = "https://drivesafe-x7gv.onrender.com"; 
 
         window.onload = function() {
@@ -74,8 +74,8 @@
                     })
                     .then(res => res.json())
                     .then(data => {
-                        // Correction : On indique au SDK Pi que le serveur approuve
-                        window.Pi.approvePayment(paymentId);
+                        // CORRECTION : Utilisation de "window.pi" avec un "p" minuscule pour le SDK
+                        window.pi.approvePayment(paymentId);
                         statusDiv.innerText = "Paiement approuvé par le serveur. En attente sur ton Wallet...";
                     })
                     .catch(err => {
@@ -92,8 +92,8 @@
                     })
                     .then(res => res.json())
                     .then(data => {
-                        // Correction : On indique au SDK Pi que la transaction est complétée
-                        window.Pi.completePayment(paymentId, txid);
+                        // CORRECTION : Utilisation de "window.pi" avec un "p" minuscule pour le SDK
+                        window.pi.completePayment(paymentId, txid);
                         statusDiv.className = "status-box success";
                         statusDiv.innerText = "Félicitations ! Paiement validé par le réseau.";
                     })
