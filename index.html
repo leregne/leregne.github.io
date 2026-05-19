@@ -1,1 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriveSafe App - Test Local</title>
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+        .container {
+            text-align: center;
+            padding: 30px;
+            border-radius: 16px;
+            background: white;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            max-width: 90%;
+            width: 320px;
+        }
+        .pi-btn {
+            background-color: #6200ee;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(98, 0, 238, 0.3);
+        }
+        .pi-btn:disabled {
+            background-color: #aaaaaa;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .status-box {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .info { background-color: #e8f0fe; color: #1a73e8; }
+        .success { background-color: #e6f4ea; color: #137333; }
+        .error { background-color: #fce8e6; color: #c5221f; }
+    </style>
+</head>
+<body>
 
+    <div class="container">
+        <h1>DriveSafe App</h1>
+        <p>Mode Test Sandbox Direct</p>
+        <button class="pi-btn" id="pay-button" disabled>Attente du SDK Pi...</button>
+        <div class="status-box info" id="status-message">Connexion au réseau Pi...</div>
+    </div>
+
+    <script>
+        const payButton = document.getElementById('pay-button');
+        const statusDiv = document.getElementById('status-message');
+
+        window.onload = function() {
+            try {
+                window.Pi.init({ version: "2.0", sandbox: true });
+                
+                setTimeout(function() {
+                    window.Pi.authenticate(['username', 'payments'], function(incomplete) {})
+                    .then(function(auth) {
+                        statusDiv.className = "status-box success";
+                        statusDiv.innerHTML = "Connecté : <strong>" + auth.user.username + "</strong>";
+                        payButton.disabled = false;
+                        payButton.innerText = "Simuler paiement 1 Pi";
+                    })
+                    .catch(function(err) {
+                        statusDiv.className = "status-box error";
+                        statusDiv.innerText = "Erreur : " + err.message;
+                    });
+                }, 1500);
+            } catch (e) {
+                statusDiv.className = "status-box error";
+                statusDiv.innerText = "Erreur SDK : " + e.message;
+            }
+        };
+
+        payButton.addEventListener('click', function() {
+            statusDiv.className = "status-box info";
+            statusDiv.innerText = "Simulation de l'approbation en cours...";
+            payButton.disabled = true;
+
+            // On simule une réponse positive instantanée du serveur
+            setTimeout(() => {
+                statusDiv.innerText = "Approbation simulée ! Validation finale...";
+                
+                setTimeout(() => {
+                    statusDiv.className = "status-box success";
+                    statusDiv.innerHTML = "<strong>Paiement Réussi (Simulation) !</strong><br>Flux visuel validé.";
+                    payButton.disabled = false;
+                    payButton.innerText = "Simuler paiement 1 Pi";
+                }, 1500);
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
