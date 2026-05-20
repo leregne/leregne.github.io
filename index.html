@@ -1,1 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriveSafe App - Validation Étape 10</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
+        .container { text-align: center; padding: 30px; border-radius: 16px; background: white; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); width: 320px; max-width: 90%; }
+        .pi-btn { background-color: #6200ee; color: white; border: none; padding: 14px 28px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 12px rgba(98, 0, 238, 0.3); }
+        .pi-btn:disabled { background-color: #aaaaaa; box-shadow: none; cursor: not-allowed; }
+        .status-box { margin-top: 20px; padding: 10px; border-radius: 6px; font-size: 13px; }
+        .info { background-color: #e8f0fe; color: #1a73e8; }
+        .success { background-color: #e6f4ea; color: #137333; }
+        .error { background-color: #fce8e6; color: #c5221f; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DriveSafe App</h1>
+        <p>Validation Réelle Étape 10</p>
+        <button class="pi-btn" id="pay-button" disabled>Connexion au SDK Pi...</button>
+        <div class="status-box info" id="status-message">Initialisation...</div>
+    </div>
 
+    <script>
+        (function() {
+            var PiSDK = function() {
+                this.initialized = false;
+                this.version = "";
+                this.sandbox = false;
+                this.network = "";
+            };
+
+            PiSDK.prototype.init = function(config) {
+                if (!config.version) throw new Error("version is required");
+                if (!config.sandbox && void 0 === config.network) throw new Error("network is required");
+                this.version = config.version;
+                this.sandbox = config.sandbox;
+                this.network = config.network;
+                this.initialized = true;
+            };
+
+            PiSDK.prototype.authenticate = function(scopes, onIncompletePaymentFound) {
+                var self = this;
+                return new Promise(function(resolve, reject) {
+                    if (!self.initialized) {
+                        reject(new Error("Pi Network SDK was not initialized."));
+                        return;
+                    }
+                    window.parent.postMessage({ type: "PI_NETWORK_AUTHENTICATE", data: { scopes: scopes } }, "*");
+                    
+                    var listener = function(event) {
+                        if (event.data && event.data.type === "PI_NETWORK_AUTHENTICATE_RESULT") {
+                            window.removeEventListener("message", listener);
+                            var result = event.data.data;
+                            if (result.error) {
+                                reject(new Error(result.error));
+                            } else {
+                                resolve(result.auth);
+                            }
+                        }
+                    };
+                    window.addEventListener("message", listener);
+                });
+            };
+
+            PiSDK.prototype.createPayment = function(payment, callbacks) {
+                if (!this.initialized) throw new Error("Pi Network SDK was not initialized.");
+                window.parent.postMessage({ type: "PI_NETWORK_CREATE_PAYMENT", data: { payment: payment } }, "*");
+
+                var paymentListener = function(event) {
+                    if (event.data && event.data.type === "PI_NETWORK_PAYMENT_CALLBACK") {
+                        var cbData = event.data.data;
+                        switch (cbData.callback) {
+                            case "onReadyForServerApproval":
+                                callbacks.onReadyForServerApproval(cbData.paymentId);
+                                break;
+                            case "onReadyForServerCompletion":
+                                callbacks.onReadyForServerCompletion(cbData.paymentId, cbData.txid);
+                                break;
+                            case "onCancel":
+                                callbacks.onCancel(cbData.paymentId);
+                                window.removeEventListener("message", paymentListener);
+                                break;
+                            case "onError":
+                                callbacks.onError(new Error(cbData.error), cbData.paymentId ? { id: cbData.paymentId } : void 0);
+                                window.removeEventListener("message", paymentListener);
+                                break;
+                        }
+                    }
+                };
+                window.addEventListener("message", paymentListener);
+            };
+
+            PiSDK.prototype.approvePayment = function(paymentId) {
+                window.parent.postMessage({ type: "PI_NETWORK_APPROVE_PAYMENT", data: { paymentId: paymentId } }, "*");
+            };
+
+            PiSDK.prototype.completePayment = function(paymentId, txid) {
+                window.parent.postMessage({ type: "PI_NETWORK_COMPLETE_PAYMENT", data: { paymentId: paymentId, txid: txid } }, "*");
+            };
+
+            window.Pi = new PiSDK();
+        })();
+    </script>
+
+    <script>
+        const payButton = document.getElementById('pay-button');
+        const statusDiv = document.getElementById('status-message');
+        const BACKEND_URL = "https://drivesafe-x7gv.onrender.com"; 
+
+        // ON EXÉCUTE TOUT SANS ATTENDRE LE CHARGEMENT COMPLET DE LA PAGE
+        if (window.Pi) {
+            try {
+                window.Pi.init({ version: "2.0", sandbox: true, network: "pi_testnet" });
+                
+                window.Pi.authenticate(['username', 'payments'], function(incomplete) {
+                    console.log("Incomplete:", incomplete);
+                })
+                .then(function(auth) {
+                    statusDiv.className = "status-box success";
+                    statusDiv.innerHTML = "Connecté : <strong>" + auth.user.username + "</strong>";
+                    payButton.disabled = false;
+                    payButton.innerText = "Payer 1 Pi (Test)";
+                })
+                .catch(function(err) {
+                    statusDiv.className = "status-box error";
+                    statusDiv.innerText = "Attente d'autorisation Pi Browser...";
+                });
+            } catch (e) {
+                statusDiv.className = "status-box error";
+                statusDiv.innerText = "Erreur : " + e.message;
+            }
+        }
+
+        payButton.addEventListener('click', function() {
+            statusDiv.className = "status-box info";
+            statusDiv.innerText = "Création du paiement...";
+            payButton.disabled = true;
+
+            window.Pi.createPayment({
+                amount: 1,
+                memo: "Validation de l'étape 10 - DriveSafe",
+                metadata: { internal_id: "test-etape-10" }
+            }, {
+                onReadyForServerApproval: function(paymentId) {
+                    statusDiv.innerText = "Approbation serveur...";
+                    fetch(`${BACKEND_URL}/approve`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paymentId: paymentId })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        window.Pi.approvePayment(paymentId);
+                    });
+                },
+                onReadyForServerCompletion: function(paymentId, txid) {
+                    statusDiv.innerText = "Finalisation Blockchain...";
+                    fetch(`${BACKEND_URL}/complete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paymentId: paymentId, txid: txid })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        window.Pi.completePayment(paymentId, txid);
+                        statusDiv.className = "status-box success";
+                        statusDiv.innerText = "Félicitations ! Étape 10 validée !";
+                    });
+                },
+                onCancel: function(paymentId) {
+                    statusDiv.className = "status-box info";
+                    statusDiv.innerText = "Annulé.";
+                    payButton.disabled = false;
+                },
+                onError: function(error, payment) {
+                    statusDiv.className = "status-box error";
+                    statusDiv.innerText = "Erreur : " + error.message;
+                    payButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
