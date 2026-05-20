@@ -17,35 +17,22 @@
     </style>
 </head>
 <body>
-    <div class="container" id="app-container">
+    <div class="container">
         <h1>DriveSafe App</h1>
         <p>Validation Réelle Étape 10</p>
         <button class="pi-btn" id="pay-button" disabled>Connexion au SDK Pi...</button>
-        <div class="status-box info" id="status-message">Initialisation du script...</div>
+        <div class="status-box info" id="status-message">Initialisation...</div>
     </div>
-
     <script>
         const payButton = document.getElementById('pay-button');
         const statusDiv = document.getElementById('status-message');
         const BACKEND_URL = "https://drivesafe-x7gv.onrender.com"; 
 
-        // SÉCURITÉ ANTI ÉCRAN BLANC : Si après 2.5 secondes rien ne bouge, on force un affichage
-        setTimeout(function() {
-            if (statusDiv.innerText === "Initialisation du script...") {
-                statusDiv.className = "status-box error";
-                statusDiv.innerHTML = "<strong>Alerte :</strong> Le SDK Pi est bloqué par le navigateur. Vérifie que tu es bien connecté dans le Pi Browser.";
-            }
-        }, 2500);
-
         window.onload = function() {
             if (window.Pi) {
                 try {
-                    statusDiv.innerText = "Lancement de window.Pi.init...";
-                    
-                    // Initialisation standard de production
-                    window.Pi.init({ version: "2.0", sandbox: false });
-                    
-                    statusDiv.innerText = "Authentification en cours...";
+                    // Configuration requise pour lier un site en ligne (HTTPS) au Pi Testnet
+                    window.Pi.init({ version: "2.0", sandbox: true, network: "pi_testnet" });
                     
                     window.Pi.authenticate(['username', 'payments'], function(incomplete) {
                         console.log("Paiement incomplet :", incomplete);
@@ -54,7 +41,7 @@
                         statusDiv.className = "status-box success";
                         statusDiv.innerHTML = "Connecté : <strong>" + auth.user.username + "</strong>";
                         payButton.disabled = false;
-                        payButton.innerText = "Payer 1 Pi";
+                        payButton.innerText = "Payer 1 Pi (Test)";
                     })
                     .catch(function(err) {
                         statusDiv.className = "status-box error";
@@ -62,11 +49,11 @@
                     });
                 } catch (e) {
                     statusDiv.className = "status-box error";
-                    statusDiv.innerText = "Erreur fatale init : " + e.message;
+                    statusDiv.innerText = "Erreur init : " + e.message;
                 }
             } else {
                 statusDiv.className = "status-box error";
-                statusDiv.innerText = "Le script global SDK de Pi n'est pas chargé.";
+                statusDiv.innerText = "Le script Pi n'est pas chargé.";
             }
         };
 
