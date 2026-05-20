@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DriveSafe App - Validation Étape 10</title>
-    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+    <script src="./pi-sdk.js"></script>
     <style>
         body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
         .container { text-align: center; padding: 30px; border-radius: 16px; background: white; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); width: 320px; max-width: 90%; }
@@ -29,32 +29,34 @@
         const BACKEND_URL = "https://drivesafe-x7gv.onrender.com"; 
 
         window.onload = function() {
-            if (window.Pi) {
-                try {
-                    // Configuration requise pour lier un site en ligne (HTTPS) au Pi Testnet
-                    window.Pi.init({ version: "2.0", sandbox: true, network: "pi_testnet" });
-                    
-                    window.Pi.authenticate(['username', 'payments'], function(incomplete) {
-                        console.log("Paiement incomplet :", incomplete);
-                    })
-                    .then(function(auth) {
-                        statusDiv.className = "status-box success";
-                        statusDiv.innerHTML = "Connecté : <strong>" + auth.user.username + "</strong>";
-                        payButton.disabled = false;
-                        payButton.innerText = "Payer 1 Pi (Test)";
-                    })
-                    .catch(function(err) {
+            // Petite attente pour laisser le temps au téléphone d'assimiler le script local
+            setTimeout(function() {
+                if (window.Pi) {
+                    try {
+                        window.Pi.init({ version: "2.0", sandbox: true, network: "pi_testnet" });
+                        
+                        window.Pi.authenticate(['username', 'payments'], function(incomplete) {
+                            console.log("Paiement incomplet :", incomplete);
+                        })
+                        .then(function(auth) {
+                            statusDiv.className = "status-box success";
+                            statusDiv.innerHTML = "Connecté : <strong>" + auth.user.username + "</strong>";
+                            payButton.disabled = false;
+                            payButton.innerText = "Payer 1 Pi (Test)";
+                        })
+                        .catch(function(err) {
+                            statusDiv.className = "status-box error";
+                            statusDiv.innerText = "Erreur d'authentification : " + err.message;
+                        });
+                    } catch (e) {
                         statusDiv.className = "status-box error";
-                        statusDiv.innerText = "Erreur d'authentification : " + err.message;
-                    });
-                } catch (e) {
+                        statusDiv.innerText = "Erreur init : " + e.message;
+                    }
+                } else {
                     statusDiv.className = "status-box error";
-                    statusDiv.innerText = "Erreur init : " + e.message;
+                    statusDiv.innerText = "Le script Pi local n'a pas pu être exécuté par le navigateur.";
                 }
-            } else {
-                statusDiv.className = "status-box error";
-                statusDiv.innerText = "Le script Pi n'est pas chargé.";
-            }
+            }, 500);
         };
 
         payButton.addEventListener('click', function() {
