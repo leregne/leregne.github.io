@@ -1,1 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>DriveSafe App - Validation Étape 10 (Améliorée)</title>
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f0f2f5, #e8eaf0);
+        }
+        .container {
+            text-align: center;
+            padding: 30px 20px;
+            border-radius: 28px;
+            background: white;
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1);
+            width: 380px;
+            max-width: 100%;
+        }
+        h1 { margin: 0 0 8px; color: #1a1a1a; font-weight: 700; }
+        .subtitle { color: #666; margin-bottom: 25px; font-size: 14px; }
+        .pi-btn {
+            background: linear-gradient(135deg, #6200ee, #8a2be2);
+            color: white;
+            border: none;
+            padding: 16px 20px;
+            font-size: 17px;
+            font-weight: 600;
+            border-radius: 40px;
+            cursor: pointer;
+            width: 100%;
+            margin: 8px 0;
+            box-shadow: 0 4px 12px rgba(98, 0, 238, 0.25);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .pi-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(98, 0, 238, 0.35); }
+        .pi-btn:disabled { background: #b0a0c0; cursor: not-allowed; opacity: 0.7; }
+        .status-box {
+            margin-top: 20px;
+            padding: 14px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            line-height: 1.4;
+            min-height: 68px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .info    { background: #e8f0fe; color: #1a73e8; border-left: 4px solid #1a73e8; }
+        .success { background: #e6f4ea; color: #137333; border-left: 4px solid #137333; }
+        .error   { background: #fce8e6; color: #c5221f; border-left: 4px solid #c5221f; }
+        .warning { background: #fff3e0; color: #b45f06; border-left: 4px solid #b45f06; }
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 3px solid #e0e0e0;
+            border-top: 3px solid #6200ee;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .footer-note { font-size: 11px; color: #aaa; margin-top: 20px; }
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #777;
+            font-size: 12px;
+            text-decoration: underline;
+            margin-top: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>DriveSafe</h1>
+    <p class="subtitle">Validation Réelle — Étape 10 (améliorée)</p>
+    <button class="pi-btn" id="pay-button" disabled>⚡ Connexion Pi Network...</button>
+    <button id="logout-button" class="logout-btn" style="display: none;">Changer de compte Pi</button>
+    <div class="status-box info" id="status-message">Initialisation du SDK Pi...</div>
+    <div class="footer-note">Paiement sécurisé via Pi Blockchain</div>
+</div>
 
+<script>
+    // ----- CONFIGURATION -----
+    const BACKEND_URL = "https://drivesafe-x7gv.onrender.com";
+    const SANDBOX_MODE = true;
+    const REQUEST_TIMEOUT_MS = 15000;
+    
+    // ----- DOM -----
+    const payButton = document.getElementById('pay-button');
+    const statusDiv = document.getElementById('status-message');
+    const logoutBtn = document.getElementById('logout-button');
+    
+    // ----- ÉTAT -----
+    let currentPaymentId = null;
+    let currentUser = null;
+    let isProcessing = false;
+    let pendingPaymentReprise = false;
+    
+    // ----- UTILITAIRES -----
+    function setStatus(text, type = "info") {
+        statusDiv.className = `status-box ${type}`;
+        statusDiv.innerHTML = text;
+    }
+    function showLoading(text) {
+        setStatus(`<span class="spinner"></span>${text}`, "info");
+    }
+    function formatErrorMessage(rawError) {
+        console.error("[DriveSafe]", rawError);
+        if (rawError?.message?.includes("network") || rawError?.message?.includes("fetch"))
+            return "⚠️ Problème de connexion. Vérifiez votre réseau.";
+        if (rawError?.message?.includes("timeout"))
+            return "⏱️ Le serveur met trop de temps à répondre. Réessayez.";
+        return "❌ Une erreur est survenue. Réessayez plus tard.";
+    }
+    async function fetchWithTimeout(url, options, timeoutMs = REQUEST_TIMEOUT_MS) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            clearTimeout(timeoutId);
+            return response;
+        } catch (err) {
+            clearTimeout(timeoutId);
+            if (err.name === 'AbortError') throw new Error('Request timeout');
+            throw err;
+        }
+    }
+    
+    // ----- BACKEND -----
+    async function approvePaymentOnServer(paymentId) {
+        const response = await fetchWithTimeout(`${BACKEND_URL}/approve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentId, userId: currentUser?.uid })
+        });
+        if (!response.ok) throw new Error(`Server approve failed: ${response.status}`);
+        return response.json();
+    }
+    async function completePaymentOnServer(paymentId, txid) {
+        const response = await fetchWithTimeout(`${BACKEND_URL}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentId, txid, userId: currentUser?.uid })
+        });
+        if (!response.ok) throw new Error(`Server complete failed: ${response.status}`);
+        return response.json();
+    }
+    
+    // ----- REPRISE PAIEMENT INCOMPLET -----
+    async function resumeIncompletePayment(payment) {
+        if (isProcessing) return;
+        isProcessing = true;
+        pendingPaymentReprise = true;
+        setStatus(`🔄 Reprise paiement (ID: ${payment.identifier.substring(0, 8)}...)`, "info");
+        payButton.disabled = true;
+        try {
+            if (payment.status === 'ready_for_server_completion' && payment.txid) {
+                showLoading("Finalisation...");
+                await completePaymentOnServer(payment.identifier, payment.txid);
+                await window.Pi.completePayment(payment.identifier, payment.txid);
+                setStatus("✅ Paiement finalisé ! Étape 10 validée.", "success");
+                payButton.innerText = "✓ Étape validée";
+                payButton.disabled = true;
+            } else if (payment.status === 'ready_for_server_approval') {
+                showLoading("Validation serveur...");
+                await approvePaymentOnServer(payment.identifier);
+                await window.Pi.approvePayment(payment.identifier);
+                setStatus("✅ Paiement approuvé, finalisation auto...", "success");
+            } else {
+                setStatus(`Statut inattendu : ${payment.status}`, "error");
+                payButton.disabled = false;
+            }
+        } catch (err) {
+            setStatus(formatErrorMessage(err), "error");
+            payButton.disabled = false;
+        } finally {
+            isProcessing = false;
+            pendingPaymentReprise = false;
+        }
+    }
+    
+    function onIncompletePaymentFound(payment) {
+        if (!currentUser) {
+            setStatus("Paiement en attente détecté. Connectez-vous.", "warning");
+            return;
+        }
+        resumeIncompletePayment(payment);
+    }
+    
+    // ----- INITIALISATION PI -----
+    async function initPiSDK() {
+        try {
+            if (!window.Pi) throw new Error("SDK Pi non chargé");
+            showLoading("Initialisation Pi...");
+            await window.Pi.init({
+                version: "2.0",
+                appId: "drivesafe0608",
+                sandbox: SANDBOX_MODE,
+                onIncompletePaymentFound: onIncompletePaymentFound
+            });
+            setStatus("Authentification en cours...");
+            const auth = await window.Pi.authenticate(['username', 'payments'], (payment) => {
+                if (payment && !pendingPaymentReprise) onIncompletePaymentFound(payment);
+            });
+            currentUser = { username: auth.user.username, uid: auth.user.uid };
+            setStatus(`✅ Connecté : <strong>${currentUser.username}</strong>`, "success");
+            logoutBtn.style.display = "inline-block";
+            // Petit délai pour stabiliser le SDK
+            await new Promise(r => setTimeout(r, 100));
+            const pendingPayments = await window.Pi.getPendingPayments().catch(e => []);
+            for (const payment of pendingPayments) {
+                if (['ready_for_server_approval', 'ready_for_server_completion'].includes(payment.status)) {
+                    await resumeIncompletePayment(payment);
+                    break;
+                }
+            }
+            if (!isProcessing) {
+                payButton.disabled = false;
+                payButton.innerText = "💰 Payer 1 Pi (Validation Étape 10)";
+                payButton.onclick = handlePayment;
+            }
+        } catch (err) {
+            console.error(err);
+            let userMsg = formatErrorMessage(err);
+            if (err.message.includes("authenticate")) userMsg = "Échec d'authentification. Utilisez Pi Browser.";
+            setStatus(userMsg, "error");
+            payButton.disabled = true;
+            payButton.innerText = "⚠️ Erreur de connexion";
+        }
+    }
+    
+    // ----- PAIEMENT -----
+    async function handlePayment() {
+        if (payButton.disabled || isProcessing) return;
+        isProcessing = true;
+        payButton.disabled = true;
+        showLoading("Création du paiement...");
+        try {
+            await window.Pi.createPayment({
+                amount: 1,
+                memo: "Validation Étape 10 - DriveSafe",
+                metadata: { step: "10", app: "DriveSafe", userId: currentUser?.uid, timestamp: Date.now() }
+            }, {
+                onReadyForServerApproval: async (paymentId) => {
+                    currentPaymentId = paymentId;
+                    showLoading("Approbation serveur...");
+                    await approvePaymentOnServer(paymentId);
+                    await window.Pi.approvePayment(paymentId);
+                },
+                onReadyForServerCompletion: async (paymentId, txid) => {
+                    showLoading("Finalisation...");
+                    await completePaymentOnServer(paymentId, txid);
+                    await window.Pi.completePayment(paymentId, txid);
+                    setStatus("🎉 Félicitations ! Étape 10 validée !", "success");
+                    payButton.innerText = "✓ Validation réussie";
+                    payButton.disabled = true;
+                },
+                onCancel: () => {
+                    setStatus("Paiement annulé.", "info");
+                    payButton.disabled = false;
+                    isProcessing = false;
+                    currentPaymentId = null;
+                },
+                onError: (error) => {
+                    console.error(error);
+                    setStatus(formatErrorMessage(error), "error");
+                    payButton.disabled = false;
+                    isProcessing = false;
+                    currentPaymentId = null;
+                }
+            });
+            // Sécurité : timeout global
+            setTimeout(() => {
+                if (isProcessing && !statusDiv.innerHTML.includes("succès")) {
+                    setStatus("Le paiement a pris trop de temps.", "warning");
+                    payButton.disabled = false;
+                    isProcessing = false;
+                }
+            }, 60000);
+        } catch (err) {
+            setStatus(formatErrorMessage(err), "error");
+            payButton.disabled = false;
+            isProcessing = false;
+        }
+    }
+    
+    function logout() {
+        if (isProcessing) {
+            setStatus("Attendez la fin du paiement.", "warning");
+            return;
+        }
+        window.location.reload();
+    }
+    
+    window.onload = () => {
+        initPiSDK();
+        logoutBtn.onclick = logout;
+    };
+</script>
+</body>
+</html>
